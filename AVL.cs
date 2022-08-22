@@ -1,36 +1,25 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
 public class AVL
 {
-    public class Node
+    public abstract class Node : ICloneable
     {
-        public Node previousNode;
-        public Vector3Int tilePosition;
-        public float distanceToFinish;
-        public float distancePath;
-
         public Node left;
         public Node right;
-        public Node(float distancePath, float distanceToFinish, Vector3Int tilePosition, Node previousNode)
+        public Vector3Int tilePosition;
+
+        public Node(Vector3Int tilePosition)
         {
             this.tilePosition = tilePosition;
-            this.previousNode = previousNode;
-
-            this.distancePath = distancePath;
-            this.distanceToFinish = distanceToFinish;
         }
+        public abstract object Clone();
 
-        public float getData()
-        {
-            return this.distancePath + this.distanceToFinish;
-        }
+        public abstract float getCost();
 
-        public override int GetHashCode()
-        {
-            return this.tilePosition.x * 100000 + tilePosition.y;
-        }
+        public override abstract int GetHashCode();
     }
 
     Node root;
@@ -60,17 +49,22 @@ public class AVL
             current = n;
             return current;
         }
-        else if (n.getData() < current.getData())
+        else if (n.getCost() < current.getCost())
         {
             current.left = RecursiveInsert(current.left, n);
             current = balance_tree(current);
         }
-        else if (n.getData() >= current.getData())
+        else if (n.getCost() >= current.getCost())
         {
             current.right = RecursiveInsert(current.right, n);
             current = balance_tree(current);
         }
         return current;
+    }
+
+    public bool isEmpty()
+    {
+        return this.root == null;
     }
 
     /// <summary>
@@ -79,12 +73,13 @@ public class AVL
     /// <returns></returns>
     public Node PopMinValue()
     {
+        if (this.root == null) return null;
         Node currentNode = this.root;
         while (currentNode.left != null)
         {
             currentNode = currentNode.left;
         }
-        Node result = new Node(currentNode.distancePath, currentNode.distanceToFinish, currentNode.tilePosition, currentNode.previousNode);
+        Node result = (Node)currentNode.Clone();
         Delete(currentNode);
         result.left = null;
         result.right = null;
@@ -106,7 +101,7 @@ public class AVL
         else
         {
             //left subtree
-            if (node.getData() < current.getData())
+            if (node.getCost() < current.getCost())
             {
                 current.left = Delete(current.left, node, current);
                 if (balance_factor(current) == -2)//here
@@ -122,7 +117,7 @@ public class AVL
                 }
             }
             //right subtree
-            else if (node.getData() > current.getData())
+            else if (node.getCost() > current.getCost())
             {
                 current.right = Delete(current.right, node, current);
                 if (balance_factor(current) == 2)
@@ -137,7 +132,7 @@ public class AVL
                     }
                 }
             }
-            else if (node.getData() == current.getData() && node.tilePosition != current.tilePosition)
+            else if (node.getCost() == current.getCost() && node.tilePosition != current.tilePosition)
             {
                 if (Contains(current.right, node))
                 {
@@ -171,11 +166,15 @@ public class AVL
                 }
                 else
                 {
+                    UnityEngine.Debug.Log(node.tilePosition);
+                    //displayTree();
+                    //printAllHash();
+                    //checkIfSameHashcodeInTree(node);
                     throw new Exception("Node not in tree");
                 }
             }
             //if target is found
-            else if (node.getData() == current.getData() && node.tilePosition == current.tilePosition)
+            else if (node.getCost() == current.getCost() && node.tilePosition == current.tilePosition)
             {
                 if (current.right != null)
                 {
@@ -209,6 +208,157 @@ public class AVL
         }
         return current;
     }
+    public bool contains(Vector3Int tilePosition)
+    {
+        return this.contains(this.root, tilePosition);
+    }
+    private bool contains(Node root, Vector3Int tilePosition)
+    {
+        if (root == null) return false;
+        if(root.tilePosition != tilePosition)
+        {
+            bool left = contains(root.left, tilePosition);
+            bool right = contains(root.right, tilePosition);
+            if(left || right)
+            {
+                return true;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private void checkIfSameHashcodeInTree(Node search)
+    {
+        List<List<Node>> treeInfo = getTreeInfo(root);
+
+        foreach (List<Node> nodes in treeInfo)
+        {
+            foreach (Node node in nodes)
+            {
+                if(node.GetHashCode() == search.GetHashCode())
+                {
+                    UnityEngine.Debug.Log("Node with same hascode found");
+                    UnityEngine.Debug.Log("Original node location: " + search.tilePosition);
+                    UnityEngine.Debug.Log("Original node hashcode: " + search.GetHashCode());
+                    UnityEngine.Debug.Log("Other node location: " + node.tilePosition);
+                    UnityEngine.Debug.Log("Other node hashcode: " + node.GetHashCode());
+                    return;
+                }
+            }
+        }
+    }
+    private void printAllHash()
+    {
+        List<List<Node>> treeInfo = getTreeInfo(root);
+
+        foreach (List<Node> nodes in treeInfo)
+        {
+            string result = "";
+            foreach (Node node in nodes)
+            {
+                result += node.GetHashCode();
+            }
+            UnityEngine.Debug.Log(result);
+        }
+    }
+
+    private void displayTree()
+    {
+        List<List<Node>> treeInfo = getTreeInfo(root);
+
+        foreach (List<Node> nodes in treeInfo)
+        {
+            string result = "";
+            foreach (Node node in nodes)
+            {
+                result += node.tilePosition.ToString();
+            }
+            UnityEngine.Debug.Log(result);
+        }
+    }
+
+    private List<List<Node>> getTreeInfo(Node root)
+    {
+        if(root.left == null && root.right == null)
+        {
+            List<Node> thisNode = new List<Node>();
+            thisNode.Add(root);
+
+            List<List<Node>> result = new List<List<Node>>();
+            result.Add(thisNode);
+
+            return result;
+        }
+        else if (root.left != null && root.right != null)
+        {
+            List<Node> thisNode = new List<Node>();
+            thisNode.Add(root);
+
+            List<List<Node>> childResultLeft = getTreeInfo(root.left);
+            List<List<Node>> childResultRight = getTreeInfo(root.right);
+
+            List<List<Node>> result = new List<List<Node>>();
+            result.Add(thisNode);
+            for (int i = 0; i < Math.Max(childResultLeft.Count, childResultRight.Count); i++)
+            {
+                List<Node> nodesLeft = new List<Node>();
+                if(i < childResultLeft.Count)
+                {
+                    nodesLeft = childResultLeft[i];
+                }
+
+                List<Node> nodesRight = new List<Node>();
+                if (i < childResultRight.Count)
+                {
+                    nodesRight = childResultRight[i];
+                }
+
+                List<Node> nodes = new List<Node>();
+                nodes.AddRange(nodesLeft);
+                nodes.AddRange(nodesRight);
+
+                result.Add(nodes);
+            }
+
+            return result;
+        }
+        else if (root.left != null)
+        {
+            List<Node> thisNode = new List<Node>();
+            thisNode.Add(root);
+
+            List<List<Node>> childResult = getTreeInfo(root.left);
+
+            List<List<Node>> result = new List<List<Node>>();
+            result.Add(thisNode);
+            result.AddRange(childResult);
+
+            return result;
+        }
+        else if (root.right != null)
+        {
+            List<Node> thisNode = new List<Node>();
+            thisNode.Add(root);
+
+            List<List<Node>> childResult = getTreeInfo(root.right);
+
+            List<List<Node>> result = new List<List<Node>>();
+            result.Add(thisNode);
+            foreach (List<Node> nodes in childResult)
+            {
+                result.Add(nodes);
+            }
+
+            return result;
+        }
+        else
+        {
+            UnityEngine.Debug.Log("error ocurred");
+            return new List<List<Node>>();
+        }
+    }
+
     private bool Contains(Node root, Node find)
     {
         if(root == find) return true;
